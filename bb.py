@@ -5,6 +5,7 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from web3 import Web3
 import time
+import os
 
 
 # --- CONFIG ---
@@ -13,20 +14,25 @@ TG_CHANNEL_USERNAME = "studyverseclass10"  # Without @ symbol
 TG_CHANNEL_ID = "@studyverseclass10"  # With @ for display
 YT_CHANNEL_1 = "UC_x5XG1OV2P6uZZ5FSM9Ttw"  # Google Developer
 YT_CHANNEL_2 = "UCq-Fj5jknLsUf-MWSy4_brA"  # YouTube India
-BASE_URL = "http://localhost:5000"
+
+# Use environment variable for base URL, fallback to localhost for development
+BASE_URL = os.environ.get('BASE_URL', 'http://localhost:5000')
+# Alternative: Render provides RENDER_EXTERNAL_URL automatically
+# BASE_URL = os.environ.get('RENDER_EXTERNAL_URL', 'http://localhost:5000')
+
 SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
 
-# Web3 config
+# Web3 config - use environment variables for security
 RPC_URL = "https://bsc-dataseed.binance.org/"
-PRIVATE_KEY = "YOUR_PRIVATE_KEY"  # Replace with your actual private key
-SENDER_ADDRESS = "0xYourFundingWallet"  # Replace with your actual wallet
+PRIVATE_KEY = os.environ.get('PRIVATE_KEY', 'YOUR_PRIVATE_KEY')
+SENDER_ADDRESS = os.environ.get('SENDER_ADDRESS', '0xYourFundingWallet')
 REWARD_AMOUNT = 0.0005
 
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
-app.secret_key = "your_random_secret_key_here"
+app.secret_key = os.environ.get('SECRET_KEY', 'your_random_secret_key_here')
 
 # --- In-memory state ---
 user_state = {}  # {tg_id: {"step": int, "wallet": str, "yt_verified": []}}
@@ -344,10 +350,15 @@ def status_command(msg):
     bot.send_message(tg_id, status_text, parse_mode='Markdown')
 
 
+# --- Health check endpoint ---
+@app.route("/")
+def health_check():
+    return "<h2>🤖 Bot is running!</h2><p>All systems operational.</p>"
+
+
 # --- Run both Flask and Bot ---
 if __name__ == "__main__":
     from threading import Thread
-    import os
 
     def run_flask():
         port = int(os.environ.get("PORT", 8080))
@@ -357,13 +368,12 @@ if __name__ == "__main__":
     if not os.path.exists('cc.json'):
         print("⚠️  Warning: cc.json not found. Please add your Google OAuth credentials.")
     
+    print(f"🌐 Base URL: {BASE_URL}")
     print("🚀 Starting Flask server...")
     Thread(target=run_flask, daemon=True).start()
     
     print("🤖 Starting Telegram bot...")
     print(f"📱 Telegram Channel: {TG_CHANNEL_ID}")
     print(f"📺 YouTube Channels: {YT_CHANNEL_1}, {YT_CHANNEL_2}")
-    print(f"🌐 Base URL: {BASE_URL}")
     
-
     bot.polling(none_stop=True)
