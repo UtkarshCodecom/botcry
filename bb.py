@@ -16,7 +16,7 @@ YT_CHANNEL_1 = "UC_x5XG1OV2P6uZZ5FSM9Ttw"  # Google Developer
 YT_CHANNEL_2 = "UCq-Fj5jknLsUf-MWSy4_brA"  # YouTube India
 
 # Get the base URL - Render automatically provides RENDER_EXTERNAL_URL
-BASE_URL = os.environ.get('RENDER_EXTERNAL_URL') or os.environ.get('BASE_URL', 'http://localhost:5000')
+BASE_URL = os.environ.get('RENDER_EXTERNAL_URL') or os.environ.get('BASE_URL', 'https://botcry.onrender.com')
 
 # Ensure HTTPS for production
 if BASE_URL.startswith('https://') or BASE_URL.startswith('http://localhost'):
@@ -164,7 +164,7 @@ def callback():
         flow = Flow.from_client_secrets_file(
             "cc.json",
             scopes=SCOPES,
-            redirect_uri=f"{BASE_URL}/callback"
+            redirect_uri=f"{BASE_URL}"
         )
         flow.fetch_token(authorization_response=request.url)
         creds = flow.credentials
@@ -392,3 +392,4 @@ if __name__ == "__main__":
     print(f"📺 YouTube Channels: {YT_CHANNEL_1}, {YT_CHANNEL_2}")
     
     bot.polling(none_stop=True)
+
