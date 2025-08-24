@@ -24,9 +24,20 @@ BASE_URL = (
     'http://localhost:5000'
 )
 
-# Clean up the URL
+# Clean up the URL and force HTTPS for production
 if BASE_URL.endswith('/'):
     BASE_URL = BASE_URL[:-1]
+
+# Force HTTPS for production (except localhost)
+if not BASE_URL.startswith('https://') and not BASE_URL.startswith('http://localhost'):
+    BASE_URL = BASE_URL.replace('http://', 'https://')
+
+# Set OAuth environment for production
+if BASE_URL.startswith('https://'):
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '0'
+else:
+    # Allow insecure transport only for localhost development
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
 
@@ -206,7 +217,10 @@ def debug_info():
 @app.route("/test-oauth")
 def test_oauth():
     """Test OAuth flow without going through Telegram bot"""
+    # Force HTTPS for production
     redirect_uri = f"{BASE_URL}/callback"
+    if not redirect_uri.startswith('https://') and not redirect_uri.startswith('http://localhost'):
+        redirect_uri = redirect_uri.replace('http://', 'https://')
     
     if not os.path.exists('cc.json'):
         return """
@@ -217,6 +231,10 @@ def test_oauth():
         """
     
     try:
+        # Set environment variable to allow HTTPS
+        import os
+        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '0'  # Force secure transport
+        
         # Store test session data
         session["user_id"] = 999999  # Test user ID
         session["channel"] = 1
@@ -226,13 +244,17 @@ def test_oauth():
             scopes=SCOPES,
             redirect_uri=redirect_uri
         )
-        auth_url, _ = flow.authorization_url(prompt="consent")
+        auth_url, _ = flow.authorization_url(
+            prompt="consent",
+            access_type='offline'
+        )
         
         return f"""
         <h2>🧪 OAuth Test</h2>
         <div style="background: #f0f0f0; padding: 20px; border-radius: 5px;">
             <p><strong>✅ OAuth setup looks good!</strong></p>
             <p><strong>Redirect URI:</strong> <code>{redirect_uri}</code></p>
+            <p><strong>Using HTTPS:</strong> <code>{redirect_uri.startswith('https://')}</code></p>
             <p><strong>Test the full flow:</strong></p>
             <a href="{auth_url}" style="background: #4285f4; color: white; padding: 15px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 10px 0;">
                 🔗 Test Google OAuth
@@ -246,11 +268,13 @@ def test_oauth():
         <div style="background: #ffebee; padding: 20px; border-radius: 5px;">
             <p><strong>Error:</strong> {e}</p>
             <p><strong>Redirect URI:</strong> <code>{redirect_uri}</code></p>
+            <p><strong>Using HTTPS:</strong> <code>{redirect_uri.startswith('https://')}</code></p>
             <p><strong>Possible issues:</strong></p>
             <ul>
                 <li>cc.json file is invalid or missing</li>
                 <li>Redirect URI not added to Google Console</li>
                 <li>OAuth client is wrong type (should be "Web application")</li>
+                <li>HTTPS requirement not met</li>
             </ul>
         </div>
         <p><a href="/debug">← Back to Debug</a></p>
@@ -264,7 +288,10 @@ def login():
     session["user_id"] = user_id
     session["channel"] = channel
     
+    # Force HTTPS for production
     redirect_uri = f"{BASE_URL}/callback"
+    if not redirect_uri.startswith('https://') and not redirect_uri.startswith('http://localhost'):
+        redirect_uri = redirect_uri.replace('http://', 'https://')
     
     print(f"🔍 LOGIN DEBUG:")
     print(f"   User ID: {user_id}, Channel: {channel}")
@@ -275,13 +302,26 @@ def login():
         return "<h2>❌ Error</h2><p>Google OAuth credentials file (cc.json) not found.</p>"
     
     try:
+        # Set environment variable to allow HTTPS
+        import os
+        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '0'  # Force secure transport
+        
         flow = Flow.from_client_secrets_file(
             "cc.json",
             scopes=SCOPES,
             redirect_uri=redirect_uri
         )
-        auth_url, _ = flow.authorization_url(prompt="consent")
+        
+        # Force HTTPS in the flow
+        flow.redirect_uri = redirect_uri
+        
+        auth_url, _ = flow.authorization_url(
+            prompt="consent",
+            access_type='offline'
+        )
+        
         print(f"   ✅ Auth URL generated successfully")
+        print(f"   Auth URL: {auth_url}")
         return redirect(auth_url)
     except Exception as e:
         print(f"   ❌ Error creating flow: {e}")
@@ -289,25 +329,49 @@ def login():
         <h2>❌ OAuth Error</h2>
         <p><strong>Error:</strong> {e}</p>
         <p><strong>Redirect URI:</strong> {redirect_uri}</p>
+        <p><strong>Debug Info:</strong></p>
+        <ul>
+            <li>BASE_URL: {BASE_URL}</li>
+            <li>Using HTTPS: {redirect_uri.startswith('https://')}</li>
+            <li>cc.json exists: {os.path.exists('cc.json')}</li>
+        </ul>
         <p>Please check your Google Console settings and cc.json file.</p>
         """
 
 
 @app.route("/callback")
 def callback():
+    # Force HTTPS for production
     redirect_uri = f"{BASE_URL}/callback"
+    if not redirect_uri.startswith('https://') and not redirect_uri.startswith('http://localhost'):
+        redirect_uri = redirect_uri.replace('http://', 'https://')
+    
     print(f"🔍 CALLBACK DEBUG:")
     print(f"   BASE_URL: {BASE_URL}")
     print(f"   Redirect URI: {redirect_uri}")
     print(f"   Request URL: {request.url}")
+    print(f"   Request is secure: {request.is_secure}")
+    print(f"   Request scheme: {request.scheme}")
     
     try:
+        # Set environment variable to allow HTTPS
+        import os
+        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '0'  # Force secure transport
+        
         flow = Flow.from_client_secrets_file(
             "cc.json",
             scopes=SCOPES,
             redirect_uri=redirect_uri
         )
-        flow.fetch_token(authorization_response=request.url)
+        
+        # Get the authorization response URL and force HTTPS if needed
+        auth_response_url = request.url
+        if not auth_response_url.startswith('https://') and not auth_response_url.startswith('http://localhost'):
+            auth_response_url = auth_response_url.replace('http://', 'https://')
+        
+        print(f"   Using auth response URL: {auth_response_url}")
+        
+        flow.fetch_token(authorization_response=auth_response_url)
         creds = flow.credentials
         
         user_id = session.get("user_id")
