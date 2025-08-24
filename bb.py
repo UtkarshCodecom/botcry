@@ -617,6 +617,7 @@ def run_bot():
 
 
 if __name__ == "__main__":
+    import os
     # Check requirements
     if not os.path.exists('cc.json'):
         print("⚠️  WARNING: cc.json not found!")
@@ -647,3 +648,4 @@ if __name__ == "__main__":
         # Restart bot after error
         time.sleep(5)
         run_bot()
+
