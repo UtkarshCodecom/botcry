@@ -353,7 +353,8 @@ if __name__ == "__main__":
     import os
 
     def run_flask():
-        app.run(host='0.0.0.0', port=5000, debug=False)
+        port = int(os.environ.get("PORT", 8080))
+        app.run(host="0.0.0.0", port=port)
 
     # Check if credentials file exists
     if not os.path.exists('cc.json'):
@@ -367,4 +368,5 @@ if __name__ == "__main__":
     print(f"📺 YouTube Channels: {YT_CHANNEL_1}, {YT_CHANNEL_2}")
     print(f"🌐 Base URL: {BASE_URL}")
     
+
     bot.polling(none_stop=True)
