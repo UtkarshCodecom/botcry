@@ -16,7 +16,7 @@ YT_CHANNEL_1 = "UC_x5XG1OV2P6uZZ5FSM9Ttw"  # Google Developer
 YT_CHANNEL_2 = "UCq-Fj5jknLsUf-MWSy4_brA"  # YouTube India
 
 # Use environment variable for base URL, fallback to localhost for development
-BASE_URL = os.environ.get('BASE_URL', 'http://localhost:5000')
+BASE_URL = os.environ.get('BASE_URL', 'https://botcry.onrender.com')
 # Alternative: Render provides RENDER_EXTERNAL_URL automatically
 # BASE_URL = os.environ.get('RENDER_EXTERNAL_URL', 'http://localhost:5000')
 
@@ -377,3 +377,4 @@ if __name__ == "__main__":
     print(f"📺 YouTube Channels: {YT_CHANNEL_1}, {YT_CHANNEL_2}")
     
     bot.polling(none_stop=True)
+
