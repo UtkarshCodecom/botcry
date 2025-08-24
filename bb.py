@@ -6,6 +6,7 @@ from googleapiclient.discovery import build
 from web3 import Web3
 import time
 import os
+from threading import Thread
 
 
 # --- CONFIG ---
@@ -15,14 +16,17 @@ TG_CHANNEL_ID = "@studyverseclass10"  # With @ for display
 YT_CHANNEL_1 = "UC_x5XG1OV2P6uZZ5FSM9Ttw"  # Google Developer
 YT_CHANNEL_2 = "UCq-Fj5jknLsUf-MWSy4_brA"  # YouTube India
 
-# Get the base URL - Render automatically provides RENDER_EXTERNAL_URL
-BASE_URL = os.environ.get('RENDER_EXTERNAL_URL') or os.environ.get('BASE_URL', 'https://botcry.onrender.com')
+# Get the base URL with multiple fallbacks for Render deployment
+BASE_URL = (
+    os.environ.get('RENDER_EXTERNAL_URL') or 
+    os.environ.get('BASE_URL') or 
+    f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}" if os.environ.get('RENDER_EXTERNAL_HOSTNAME') else
+    'http://localhost:5000'
+)
 
-# Ensure HTTPS for production
-if BASE_URL.startswith('https://') or BASE_URL.startswith('http://localhost'):
-    pass  # Keep as is
-else:
-    BASE_URL = f"https://{BASE_URL}" if not BASE_URL.startswith('http') else BASE_URL
+# Clean up the URL
+if BASE_URL.endswith('/'):
+    BASE_URL = BASE_URL[:-1]
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
 
@@ -32,14 +36,19 @@ PRIVATE_KEY = os.environ.get('PRIVATE_KEY', 'YOUR_PRIVATE_KEY')
 SENDER_ADDRESS = os.environ.get('SENDER_ADDRESS', '0xYourFundingWallet')
 REWARD_AMOUNT = 0.0005
 
+# Initialize Web3
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
 
+# Initialize bot and Flask app
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your_random_secret_key_here')
 
 # --- In-memory state ---
 user_state = {}  # {tg_id: {"step": int, "wallet": str, "yt_verified": []}}
+
+print(f"🌐 Using BASE_URL: {BASE_URL}")
+print(f"🔗 OAuth Redirect URI: {BASE_URL}/callback")
 
 
 # --- Helper functions ---
@@ -53,7 +62,7 @@ def check_tg_membership(user_id):
         return False
 
 
-# --- Telegram handlers ---
+# --- Telegram Bot Handlers ---
 @bot.message_handler(commands=["start"])
 def start(msg):
     tg_id = msg.chat.id
@@ -67,7 +76,7 @@ def start(msg):
     
     bot.send_message(
         tg_id,
-        f"🎯 Welcome to the Reward Bot!\n\n"
+        f"🎯 **Welcome to the Reward Bot!**\n\n"
         f"📋 **Steps to earn rewards:**\n"
         f"1️⃣ Join our Telegram channel\n"
         f"2️⃣ Subscribe to YouTube channels\n" 
@@ -127,55 +136,202 @@ def start_yt_verification(call):
     # Start with first YouTube channel verification
     auth_url = f"{BASE_URL}/login?user_id={tg_id}&channel=1"
     
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("🔗 Open Verification Link", url=auth_url))
+    
     bot.edit_message_text(
         f"**Step 2: YouTube Verification**\n\n"
         f"🔍 **Verifying Channel 1/2: Google Developers**\n\n"
-        f"🔗 **Click this link to verify your subscription:**\n"
-        f"`{auth_url}`\n\n"
+        f"👆 **Click the button above to verify your subscription**\n\n"
         f"🔒 This will open Google OAuth - grant permissions to verify your subscription.\n"
-        f"📱 After clicking, return to Telegram to continue.",
+        f"📱 After completing OAuth, return to Telegram to continue.",
         chat_id=tg_id,
         message_id=call.message.message_id,
+        reply_markup=markup,
         parse_mode='Markdown'
     )
     bot.answer_callback_query(call.id, "Starting YouTube verification...")
 
 
-# --- Flask OAuth flow ---
+# --- Flask Routes ---
+@app.route("/")
+def health_check():
+    return """
+    <h2>🤖 Telegram Reward Bot</h2>
+    <p>✅ Bot is running and ready!</p>
+    <p><a href="/debug">Debug Info</a> | <a href="/test-oauth">Test OAuth</a></p>
+    """
+
+
+@app.route("/debug")
+def debug_info():
+    """Debug endpoint to check URLs"""
+    return f"""
+    <h2>🔍 Debug Information</h2>
+    <div style="background: #f0f0f0; padding: 20px; border-radius: 5px; margin: 20px 0;">
+        <h3>Current Configuration:</h3>
+        <p><strong>BASE_URL:</strong> <code>{BASE_URL}</code></p>
+        <p><strong>OAuth Redirect URI:</strong> <code>{BASE_URL}/callback</code></p>
+        <p><strong>Bot Token:</strong> <code>{"✅ Set" if BOT_TOKEN else "❌ Missing"}</code></p>
+        <p><strong>Google Credentials:</strong> <code>{"✅ Found" if os.path.exists('cc.json') else "❌ Missing cc.json"}</code></p>
+    </div>
+    
+    <div style="background: #e8f5e8; padding: 20px; border-radius: 5px; margin: 20px 0;">
+        <h3>📋 Google Console Setup:</h3>
+        <p><strong>1. JavaScript Origins (add this):</strong></p>
+        <code style="background: white; padding: 10px; display: block; margin: 5px 0;">{BASE_URL}</code>
+        
+        <p><strong>2. Redirect URIs (add this):</strong></p>
+        <code style="background: white; padding: 10px; display: block; margin: 5px 0;">{BASE_URL}/callback</code>
+        
+        <p><a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="background: #4285f4; color: white; padding: 10px; text-decoration: none; border-radius: 3px;">🔗 Open Google Console</a></p>
+    </div>
+    
+    <div style="margin: 20px 0;">
+        <h3>🧪 Test Links:</h3>
+        <p><a href="/test-oauth">Test OAuth Flow</a></p>
+        <p><a href="https://t.me/{TG_CHANNEL_USERNAME}">Test Telegram Channel</a></p>
+    </div>
+    
+    <h3>🔧 Environment Variables:</h3>
+    <ul>
+        <li><strong>RENDER_EXTERNAL_URL:</strong> {os.environ.get('RENDER_EXTERNAL_URL', 'Not set')}</li>
+        <li><strong>BASE_URL (manual):</strong> {os.environ.get('BASE_URL', 'Not set')}</li>
+        <li><strong>RENDER_EXTERNAL_HOSTNAME:</strong> {os.environ.get('RENDER_EXTERNAL_HOSTNAME', 'Not set')}</li>
+        <li><strong>PORT:</strong> {os.environ.get('PORT', 'Not set')}</li>
+    </ul>
+    """
+
+
+@app.route("/test-oauth")
+def test_oauth():
+    """Test OAuth flow without going through Telegram bot"""
+    redirect_uri = f"{BASE_URL}/callback"
+    
+    if not os.path.exists('cc.json'):
+        return """
+        <h2>❌ OAuth Test Failed</h2>
+        <p><strong>Error:</strong> cc.json file not found</p>
+        <p>Please upload your Google OAuth credentials file as 'cc.json'</p>
+        <p><a href="/debug">← Back to Debug</a></p>
+        """
+    
+    try:
+        # Store test session data
+        session["user_id"] = 999999  # Test user ID
+        session["channel"] = 1
+        
+        flow = Flow.from_client_secrets_file(
+            "cc.json",
+            scopes=SCOPES,
+            redirect_uri=redirect_uri
+        )
+        auth_url, _ = flow.authorization_url(prompt="consent")
+        
+        return f"""
+        <h2>🧪 OAuth Test</h2>
+        <div style="background: #f0f0f0; padding: 20px; border-radius: 5px;">
+            <p><strong>✅ OAuth setup looks good!</strong></p>
+            <p><strong>Redirect URI:</strong> <code>{redirect_uri}</code></p>
+            <p><strong>Test the full flow:</strong></p>
+            <a href="{auth_url}" style="background: #4285f4; color: white; padding: 15px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 10px 0;">
+                🔗 Test Google OAuth
+            </a>
+        </div>
+        <p><a href="/debug">← Back to Debug</a></p>
+        """
+    except Exception as e:
+        return f"""
+        <h2>❌ OAuth Test Failed</h2>
+        <div style="background: #ffebee; padding: 20px; border-radius: 5px;">
+            <p><strong>Error:</strong> {e}</p>
+            <p><strong>Redirect URI:</strong> <code>{redirect_uri}</code></p>
+            <p><strong>Possible issues:</strong></p>
+            <ul>
+                <li>cc.json file is invalid or missing</li>
+                <li>Redirect URI not added to Google Console</li>
+                <li>OAuth client is wrong type (should be "Web application")</li>
+            </ul>
+        </div>
+        <p><a href="/debug">← Back to Debug</a></p>
+        """
+
+
 @app.route("/login")
 def login():
-    user_id = int(request.args.get("user_id"))
+    user_id = int(request.args.get("user_id", 0))
     channel = int(request.args.get("channel", 1))
     session["user_id"] = user_id
     session["channel"] = channel
     
-    flow = Flow.from_client_secrets_file(
-        "cc.json",  # Make sure this file exists
-        scopes=SCOPES,
-        redirect_uri=f"{BASE_URL}/callback"
-    )
-    auth_url, _ = flow.authorization_url(prompt="consent")
-    return redirect(auth_url)
-
-
-@app.route("/callback")
-def callback():
+    redirect_uri = f"{BASE_URL}/callback"
+    
+    print(f"🔍 LOGIN DEBUG:")
+    print(f"   User ID: {user_id}, Channel: {channel}")
+    print(f"   BASE_URL: {BASE_URL}")
+    print(f"   Redirect URI: {redirect_uri}")
+    
+    if not os.path.exists('cc.json'):
+        return "<h2>❌ Error</h2><p>Google OAuth credentials file (cc.json) not found.</p>"
+    
     try:
         flow = Flow.from_client_secrets_file(
             "cc.json",
             scopes=SCOPES,
-            redirect_uri=f"{BASE_URL}"
+            redirect_uri=redirect_uri
+        )
+        auth_url, _ = flow.authorization_url(prompt="consent")
+        print(f"   ✅ Auth URL generated successfully")
+        return redirect(auth_url)
+    except Exception as e:
+        print(f"   ❌ Error creating flow: {e}")
+        return f"""
+        <h2>❌ OAuth Error</h2>
+        <p><strong>Error:</strong> {e}</p>
+        <p><strong>Redirect URI:</strong> {redirect_uri}</p>
+        <p>Please check your Google Console settings and cc.json file.</p>
+        """
+
+
+@app.route("/callback")
+def callback():
+    redirect_uri = f"{BASE_URL}/callback"
+    print(f"🔍 CALLBACK DEBUG:")
+    print(f"   BASE_URL: {BASE_URL}")
+    print(f"   Redirect URI: {redirect_uri}")
+    print(f"   Request URL: {request.url}")
+    
+    try:
+        flow = Flow.from_client_secrets_file(
+            "cc.json",
+            scopes=SCOPES,
+            redirect_uri=redirect_uri
         )
         flow.fetch_token(authorization_response=request.url)
         creds = flow.credentials
         
-        user_id = session["user_id"]
-        channel = session["channel"]
+        user_id = session.get("user_id")
+        channel = session.get("channel")
+        
+        # Handle test user
+        if user_id == 999999:
+            return """
+            <h2>✅ OAuth Test Successful!</h2>
+            <p>🎉 Google OAuth is working correctly!</p>
+            <p>You can now use the Telegram bot with confidence.</p>
+            <p><a href="/debug">← Back to Debug</a></p>
+            """
+        
+        if not user_id:
+            return "<h2>❌ Error</h2><p>Session expired. Please start again from Telegram bot.</p>"
+        
         youtube = build("youtube", "v3", credentials=creds)
         
         # Select channel to verify
         channel_id = YT_CHANNEL_1 if channel == 1 else YT_CHANNEL_2
         channel_name = "Google Developers" if channel == 1 else "YouTube India"
+        
+        print(f"   Checking subscription to: {channel_name} ({channel_id})")
         
         # Check subscription
         res = youtube.subscriptions().list(
@@ -187,6 +343,8 @@ def callback():
         is_subscribed = len(res.get("items", [])) > 0
         state = user_state.get(user_id, {})
         
+        print(f"   Subscription status: {is_subscribed}")
+        
         if is_subscribed:
             # Add to verified list
             if channel not in state.get("yt_verified", []):
@@ -196,13 +354,15 @@ def callback():
                 # First channel verified, verify second
                 auth_url = f"{BASE_URL}/login?user_id={user_id}&channel=2"
                 
+                markup = InlineKeyboardMarkup()
+                markup.add(InlineKeyboardButton("🔗 Verify Second Channel", url=auth_url))
+                
                 bot.send_message(
                     user_id,
                     f"✅ **{channel_name} subscription verified!**\n\n"
                     f"🔍 **Now verifying Channel 2/2: YouTube India**\n\n"
-                    f"🔗 **Click this link to verify your second subscription:**\n"
-                    f"`{auth_url}`\n\n"
-                    f"📱 After clicking, return to Telegram to continue.",
+                    f"👆 **Click the button below to verify your second subscription:**",
+                    reply_markup=markup,
                     parse_mode='Markdown'
                 )
             elif len(state["yt_verified"]) >= 2:
@@ -229,16 +389,22 @@ def callback():
                 parse_mode='Markdown'
             )
         
-        return "<h2>✅ Verification Complete!</h2><p>You can close this window and return to Telegram.</p>"
+        return f"""
+        <h2>✅ Verification Complete!</h2>
+        <p><strong>Channel:</strong> {channel_name}</p>
+        <p><strong>Status:</strong> {"✅ Subscribed" if is_subscribed else "❌ Not subscribed"}</p>
+        <p>You can close this window and return to Telegram.</p>
+        """
         
     except Exception as e:
+        print(f"   ❌ Callback error: {e}")
         user_id = session.get("user_id")
-        if user_id:
+        if user_id and user_id != 999999:
             bot.send_message(user_id, f"⚠️ Verification error: {str(e)}")
         return f"<h2>❌ Error</h2><p>{str(e)}</p><p>Please try again.</p>"
 
 
-# --- Wallet collection & payment ---
+# --- Wallet Collection & Payment ---
 @bot.message_handler(func=lambda msg: True)
 def collect_wallet(msg):
     tg_id = msg.chat.id
@@ -259,7 +425,22 @@ def collect_wallet(msg):
         return
     
     try:
-        # Send payment
+        # Check if we have valid private key
+        if PRIVATE_KEY == 'YOUR_PRIVATE_KEY' or not PRIVATE_KEY:
+            bot.send_message(
+                tg_id,
+                f"✅ **Wallet address validated!**\n\n"
+                f"💳 Wallet: `{wallet}`\n\n"
+                f"⚠️ **Payment system is in demo mode.**\n"
+                f"Contact admin to receive your {REWARD_AMOUNT} BNB reward.\n\n"
+                f"✅ Thank you for participating!",
+                parse_mode='Markdown'
+            )
+            state["step"] = 4
+            state["wallet"] = wallet
+            return
+            
+        # Send actual payment
         bot.send_message(tg_id, "⏳ Processing payment...")
         tx_hash = send_payment(wallet, REWARD_AMOUNT)
         
@@ -287,7 +468,6 @@ def collect_wallet(msg):
         )
 
 
-# --- Payment function ---
 def send_payment(receiver, amount):
     """Send BNB payment to receiver wallet"""
     receiver = w3.to_checksum_address(receiver)
@@ -309,7 +489,7 @@ def send_payment(receiver, amount):
     return w3.to_hex(tx_hash)
 
 
-# --- Error handlers ---
+# --- Bot Commands ---
 @bot.message_handler(commands=["help"])
 def help_command(msg):
     bot.send_message(
@@ -322,7 +502,8 @@ def help_command(msg):
         "**Process:**\n"
         "1️⃣ Join Telegram channel\n"
         "2️⃣ Subscribe to YouTube channels\n"
-        "3️⃣ Send wallet address for reward",
+        "3️⃣ Send wallet address for reward\n\n"
+        f"**Support:** Contact @{TG_CHANNEL_USERNAME}",
         parse_mode='Markdown'
     )
 
@@ -345,51 +526,60 @@ def status_command(msg):
         status_text += "✅ Second YouTube channel verified\n"
     if step >= 4:
         status_text += "✅ Reward sent\n"
+        if state.get("wallet"):
+            status_text += f"💳 Wallet: `{state['wallet']}`\n"
     
     if step == 0:
-        status_text += "❌ Not started - use /start"
+        status_text += "\n❌ Not started - use /start"
     elif step < 4:
         status_text += f"\n🔄 Current step: {step}/3"
+    else:
+        status_text += f"\n🎉 Process complete!"
     
     bot.send_message(tg_id, status_text, parse_mode='Markdown')
 
 
-# --- Health check endpoint ---
-@app.route("/")
-def health_check():
-    return "<h2>🤖 Bot is running!</h2><p>All systems operational.</p>"
+# --- Main Application ---
+def run_flask():
+    """Run Flask server"""
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port, debug=False)
 
 
-@app.route("/debug")
-def debug_info():
-    """Debug endpoint to check URLs - remove in production"""
-    return f"""
-    <h2>Debug Info</h2>
-    <p><strong>BASE_URL:</strong> {BASE_URL}</p>
-    <p><strong>Redirect URI:</strong> {BASE_URL}/callback</p>
-    <p><strong>RENDER_EXTERNAL_URL:</strong> {os.environ.get('RENDER_EXTERNAL_URL', 'Not set')}</p>
-    """
+def run_bot():
+    """Run Telegram bot"""
+    print("🤖 Starting Telegram bot polling...")
+    bot.polling(none_stop=True, interval=1, timeout=60)
 
 
-# --- Run both Flask and Bot ---
 if __name__ == "__main__":
-    from threading import Thread
-
-    def run_flask():
-        port = int(os.environ.get("PORT", 8080))
-        app.run(host="0.0.0.0", port=port)
-
-    # Check if credentials file exists
+    # Check requirements
     if not os.path.exists('cc.json'):
-        print("⚠️  Warning: cc.json not found. Please add your Google OAuth credentials.")
+        print("⚠️  WARNING: cc.json not found!")
+        print("   Please upload your Google OAuth credentials file.")
     
+    if BOT_TOKEN == "YOUR_BOT_TOKEN":
+        print("❌ ERROR: Please set your actual bot token!")
+        exit(1)
+    
+    print(f"🚀 Starting application...")
     print(f"🌐 Base URL: {BASE_URL}")
-    print("🚀 Starting Flask server...")
-    Thread(target=run_flask, daemon=True).start()
-    
-    print("🤖 Starting Telegram bot...")
     print(f"📱 Telegram Channel: {TG_CHANNEL_ID}")
     print(f"📺 YouTube Channels: {YT_CHANNEL_1}, {YT_CHANNEL_2}")
+    print(f"🔗 OAuth Callback: {BASE_URL}/callback")
     
-    bot.polling(none_stop=True)
-
+    # Start Flask server in background thread
+    flask_thread = Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    print("✅ Flask server started")
+    
+    # Start bot polling in main thread
+    try:
+        run_bot()
+    except KeyboardInterrupt:
+        print("\n🛑 Shutting down bot...")
+    except Exception as e:
+        print(f"❌ Bot error: {e}")
+        # Restart bot after error
+        time.sleep(5)
+        run_bot()
