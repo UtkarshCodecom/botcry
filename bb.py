@@ -117,16 +117,15 @@ def start_yt_verification(call):
     # Start with first YouTube channel verification
     auth_url = f"{BASE_URL}/login?user_id={tg_id}&channel=1"
     
-    bot.send_message(tg_id,f"🔐 Click the link below to verify your YouTube subscription:\n\n{auth_url}\n\n" "This will open a browser and guide you through the Google OAuth verification.")
-    
     bot.edit_message_text(
         f"**Step 2: YouTube Verification**\n\n"
         f"🔍 **Verifying Channel 1/2: Google Developers**\n\n"
-        f"👆 Click the button above to authenticate and verify your subscription.\n"
-        f"🔒 This will open Google OAuth - grant permissions to verify your subscription.",
+        f"🔗 **Click this link to verify your subscription:**\n"
+        f"`{auth_url}`\n\n"
+        f"🔒 This will open Google OAuth - grant permissions to verify your subscription.\n"
+        f"📱 After clicking, return to Telegram to continue.",
         chat_id=tg_id,
         message_id=call.message.message_id,
-        reply_markup=markup,
         parse_mode='Markdown'
     )
     bot.answer_callback_query(call.id, "Starting YouTube verification...")
@@ -186,15 +185,14 @@ def callback():
             if len(state["yt_verified"]) == 1:
                 # First channel verified, verify second
                 auth_url = f"{BASE_URL}/login?user_id={user_id}&channel=2"
-                markup = InlineKeyboardMarkup()
-                markup.add(InlineKeyboardButton("🔐 Verify Second Channel (YouTube India)", url=auth_url))
                 
                 bot.send_message(
                     user_id,
                     f"✅ **{channel_name} subscription verified!**\n\n"
                     f"🔍 **Now verifying Channel 2/2: YouTube India**\n\n"
-                    f"👆 Click the button to verify your second subscription.",
-                    reply_markup=markup,
+                    f"🔗 **Click this link to verify your second subscription:**\n"
+                    f"`{auth_url}`\n\n"
+                    f"📱 After clicking, return to Telegram to continue.",
                     parse_mode='Markdown'
                 )
             elif len(state["yt_verified"]) >= 2:
@@ -369,4 +367,3 @@ if __name__ == "__main__":
     
 
     bot.polling(none_stop=True)
-
