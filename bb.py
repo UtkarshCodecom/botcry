@@ -15,10 +15,14 @@ TG_CHANNEL_ID = "@studyverseclass10"  # With @ for display
 YT_CHANNEL_1 = "UC_x5XG1OV2P6uZZ5FSM9Ttw"  # Google Developer
 YT_CHANNEL_2 = "UCq-Fj5jknLsUf-MWSy4_brA"  # YouTube India
 
-# Use environment variable for base URL, fallback to localhost for development
-BASE_URL = os.environ.get('BASE_URL', 'https://botcry.onrender.com')
-# Alternative: Render provides RENDER_EXTERNAL_URL automatically
-# BASE_URL = os.environ.get('RENDER_EXTERNAL_URL', 'http://localhost:5000')
+# Get the base URL - Render automatically provides RENDER_EXTERNAL_URL
+BASE_URL = os.environ.get('RENDER_EXTERNAL_URL') or os.environ.get('BASE_URL', 'http://localhost:5000')
+
+# Ensure HTTPS for production
+if BASE_URL.startswith('https://') or BASE_URL.startswith('http://localhost'):
+    pass  # Keep as is
+else:
+    BASE_URL = f"https://{BASE_URL}" if not BASE_URL.startswith('http') else BASE_URL
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
 
@@ -356,6 +360,17 @@ def health_check():
     return "<h2>🤖 Bot is running!</h2><p>All systems operational.</p>"
 
 
+@app.route("/debug")
+def debug_info():
+    """Debug endpoint to check URLs - remove in production"""
+    return f"""
+    <h2>Debug Info</h2>
+    <p><strong>BASE_URL:</strong> {BASE_URL}</p>
+    <p><strong>Redirect URI:</strong> {BASE_URL}/callback</p>
+    <p><strong>RENDER_EXTERNAL_URL:</strong> {os.environ.get('RENDER_EXTERNAL_URL', 'Not set')}</p>
+    """
+
+
 # --- Run both Flask and Bot ---
 if __name__ == "__main__":
     from threading import Thread
@@ -377,4 +392,3 @@ if __name__ == "__main__":
     print(f"📺 YouTube Channels: {YT_CHANNEL_1}, {YT_CHANNEL_2}")
     
     bot.polling(none_stop=True)
-
