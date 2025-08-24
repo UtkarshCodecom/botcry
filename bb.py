@@ -11,8 +11,8 @@ from threading import Thread
 
 # --- CONFIG ---
 BOT_TOKEN = "7321121913:AAGQ60lqsi05KB4NXlnVxpAAnAE5mXFQxg8"
-TG_CHANNEL_USERNAME = "studyverseclass10"  # Without @ symbol
-TG_CHANNEL_ID = "@studyverseclass10"  # With @ for display
+TG_CHANNEL_USERNAME = "botcryptocheck12"  # Without @ symbol
+TG_CHANNEL_ID = "@botcryptocheck12"  # With @ for display
 YT_CHANNEL_1 = "UC_x5XG1OV2P6uZZ5FSM9Ttw"  # Google Developer
 YT_CHANNEL_2 = "UCq-Fj5jknLsUf-MWSy4_brA"  # YouTube India
 
@@ -644,3 +644,4 @@ if __name__ == "__main__":
         # Restart bot after error
         time.sleep(5)
         run_bot()
+
