@@ -232,7 +232,6 @@ def test_oauth():
     
     try:
         # Set environment variable to allow HTTPS
-        import os
         os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '0'  # Force secure transport
         
         # Store test session data
@@ -303,7 +302,6 @@ def login():
     
     try:
         # Set environment variable to allow HTTPS
-        import os
         os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '0'  # Force secure transport
         
         flow = Flow.from_client_secrets_file(
@@ -355,7 +353,6 @@ def callback():
     
     try:
         # Set environment variable to allow HTTPS
-        import os
         os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '0'  # Force secure transport
         
         flow = Flow.from_client_secrets_file(
@@ -617,7 +614,6 @@ def run_bot():
 
 
 if __name__ == "__main__":
-    import os
     # Check requirements
     if not os.path.exists('cc.json'):
         print("⚠️  WARNING: cc.json not found!")
@@ -648,4 +644,3 @@ if __name__ == "__main__":
         # Restart bot after error
         time.sleep(5)
         run_bot()
-
