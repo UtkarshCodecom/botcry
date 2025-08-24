@@ -117,8 +117,7 @@ def start_yt_verification(call):
     # Start with first YouTube channel verification
     auth_url = f"{BASE_URL}/login?user_id={tg_id}&channel=1"
     
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🔐 Verify First Channel (Google Developers)", url=auth_url))
+    bot.send_message(tg_id,f"🔐 Click the link below to verify your YouTube subscription:\n\n{auth_url}\n\n" "This will open a browser and guide you through the Google OAuth verification.")
     
     bot.edit_message_text(
         f"**Step 2: YouTube Verification**\n\n"
@@ -370,3 +369,4 @@ if __name__ == "__main__":
     
 
     bot.polling(none_stop=True)
+
